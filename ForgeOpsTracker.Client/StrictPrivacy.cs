@@ -28,6 +28,11 @@ public static class StrictPrivacy
     // A route template's parameter segment: ":id", "{id}", "<int:id>", "[slug]" or "*path".
     private static readonly Regex RouteParameter = new(@"\A(?::[^\n]+|\{[^\n]+\}|<[^\n]+>|\[[^\n]+\]|\*[^\n]*)\z", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    private static readonly Regex Email = new(@"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // A quoted value (KeyError: 'Jane Doe') is data, not the shape of the error. Single quotes only open
+    // and close at a word boundary, so a contraction (Couldn't) or the `email' style never starts one.
+    private static readonly Regex DoubleQuoted = new("\"[^\"\r\n]*\"", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex SingleQuoted = new($"(?<![{Word}])'[^'\r\n]*'(?![{Word}])", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex HexObjectId = new("0x[0-9a-fA-F]{4,}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Uuid = new(
         $"(?<![{Word}])[0-9a-fA-F]{{8}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{4}}-[0-9a-fA-F]{{12}}(?![{Word}])",
@@ -41,10 +46,16 @@ public static class StrictPrivacy
     // Span data that's structure, not content: the masked statement and which database it ran on.
     private static readonly string[] SpanDataKeys = { SpanBuffer.DbStatement, SpanBuffer.DbSystem };
 
-    /// <summary>The message with hex object ids, UUIDs and standalone numbers replaced, in that order; null is "".</summary>
+    /// <summary>
+    /// The message with emails, quoted values, hex object ids, UUIDs and standalone numbers replaced, in
+    /// that order; null is "".
+    /// </summary>
     public static string NormalizeMessage(string? message)
     {
-        var normalized = HexObjectId.Replace(message ?? string.Empty, "0x");
+        var normalized = Email.Replace(message ?? string.Empty, "<email>");
+        normalized = DoubleQuoted.Replace(normalized, "<str>");
+        normalized = SingleQuoted.Replace(normalized, "<str>");
+        normalized = HexObjectId.Replace(normalized, "0x");
         normalized = Uuid.Replace(normalized, "<uuid>");
         return Number.Replace(normalized, "<n>");
     }

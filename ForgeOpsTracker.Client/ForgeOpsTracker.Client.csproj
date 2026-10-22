@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>ForgeOpsTracker.Client</PackageId>
-    <Version>0.18.1</Version>
+    <Version>0.19.0</Version>
     <Authors>ForgeOps</Authors>
     <Description>ForgeOps error tracking client: captures unhandled ASP.NET Core request exceptions (plus explicit manual reporting) and delivers them to ForgeOps over HTTP.</Description>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
