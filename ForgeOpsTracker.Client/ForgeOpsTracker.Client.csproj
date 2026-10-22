@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <PackageId>ForgeOpsTracker.Client</PackageId>
+    <Version>0.18.0</Version>
+    <Authors>ForgeOps</Authors>
+    <Description>ForgeOps error tracking client: captures unhandled ASP.NET Core request exceptions (plus explicit manual reporting) and delivers them to ForgeOps over HTTP.</Description>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://getforgeops.net</PackageProjectUrl>
+    <PackageTags>error-reporting;logging;monitoring;observability;aspnetcore</PackageTags>
+    <!-- The public read-only mirror of sdks/dotnet (see script/release_sdks_lib/mirror.rb). -->
+    <RepositoryUrl>https://github.com/Luke-Popwell/forge-ops-tracker-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="LICENSE.txt" Pack="true" PackagePath="" />
+    <None Include="../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <!--
+    Lets ForgeOpsTracker.Client.Tests exercise CurrentBreadcrumbs/CurrentUser/RecordBreadcrumb
+    directly: those are internal on purpose (host app code should only ever go through the public
+    AddBreadcrumb/SetUser/Capture facade), but the breadcrumb trail's own AsyncLocal isolation
+    under real concurrent/interleaved async flows is exactly the kind of property that's much
+    more directly, less brittly proven by reading the AsyncLocal back in-process than by inferring
+    it indirectly through an HTTP round trip alone (ForgeOpsTrackerSdkTests does both: this direct
+    seam for the SDK facade's own isolation guarantee, and a real TestServer round trip in
+    BreadcrumbContextMiddlewareTests for the DI-registered middleware path). The same seam-for-
+    testability spirit EventBuilder's own Func&lt;string, string[]&gt; readSourceLines constructor
+    overload already documents.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="ForgeOpsTracker.Client.Tests" />
+  </ItemGroup>
+
+  <!--
+    A FrameworkReference, not a package dependency: this pulls in
+    ASP.NET Core's types (IApplicationBuilder, HttpContext, IServiceCollection,
+    IHostedService, etc.) for the middleware and DI registration without
+    requiring the Microsoft.NET.Sdk.Web SDK, which only matters for actual
+    executable web apps, not a library referenced by one.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>
