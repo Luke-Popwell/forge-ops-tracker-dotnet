@@ -25,6 +25,8 @@
   <ItemGroup>
     <!-- A byte-identical copy of sdks/strict_privacy_vectors.json; see StrictPrivacyTests. -->
     <None Include="Fixtures\strict_privacy_vectors.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- A byte-identical copy of sdks/pii_scrubbing_vectors.json; see PiiScrubberTests. -->
+    <None Include="Fixtures\pii_scrubbing_vectors.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

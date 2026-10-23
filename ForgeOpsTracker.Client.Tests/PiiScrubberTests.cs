@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace ForgeOpsTracker.Tests;
 
 // Mirrors gems/forge_ops_tracker/spec/forge_ops_tracker/pii_scrubber_spec.rb.
@@ -59,5 +61,37 @@ public class PiiScrubberTests
 
         Assert.Equal("[EMAIL FILTERED]", user["email"]);
         Assert.Equal("no PII here", notes[0]);
+    }
+
+    // Fixtures/pii_scrubbing_vectors.json is a byte-identical copy of sdks/pii_scrubbing_vectors.json,
+    // generated from the server's own PiiScrubber: see sdks/PII_SCRUBBING.md.
+    private static JsonElement Vectors(string kind)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "pii_scrubbing_vectors.json");
+        return JsonDocument.Parse(File.ReadAllBytes(path)).RootElement.GetProperty(kind);
+    }
+
+    [Fact]
+    public void ScrubsCardNumbersAndIbansInEveryVectorExactlyAsTheServerDoes()
+    {
+        var vectors = Vectors("strings").EnumerateArray().ToList();
+        Assert.NotEmpty(vectors);
+        foreach (var vector in vectors)
+        {
+            Assert.Equal(vector.GetProperty("scrubbed").GetString(), PiiScrubber.ScrubString(vector.GetProperty("input").GetString()!));
+        }
+    }
+
+    [Fact]
+    public void RedactsBankDetailKeysInEveryVectorExactlyAsTheServerDoes()
+    {
+        var vectors = Vectors("keys").EnumerateArray().ToList();
+        Assert.NotEmpty(vectors);
+        foreach (var vector in vectors)
+        {
+            var key = vector.GetProperty("key").GetString()!;
+            var scrubbed = Assert.IsType<Dictionary<string, object?>>(PiiScrubber.Scrub(new Dictionary<string, object?> { [key] = "x" }));
+            Assert.Equal(vector.GetProperty("redacted").GetBoolean() ? PiiScrubber.Redacted : "x", scrubbed[key]);
+        }
     }
 }
