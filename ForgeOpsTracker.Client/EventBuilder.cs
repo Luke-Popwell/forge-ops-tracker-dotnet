@@ -90,8 +90,9 @@ public sealed class EventBuilder : IEventBuilder
     /// The same event under <see cref="Configuration.StrictPrivacy"/>: no message (only its
     /// fingerprint, taken from the message as it would otherwise have been sent, so scrubbed when
     /// scrubbing is on, matching what the server fingerprints from a client without strict
-    /// privacy), no breadcrumbs, statement or source context, the user's id only, and context/tags
-    /// reduced to the allowed keys, each left out entirely when nothing is left.
+    /// privacy), no breadcrumbs, statement or source context, the user only as a keyed hash of its
+    /// id (and only with a user key set), and context/tags reduced to the allowed keys, each left
+    /// out entirely when nothing is left.
     /// </summary>
     private TrackedEvent BuildStrict(Exception exception, IDictionary<string, object?>? context, IDictionary<string, object?>? user)
     {
@@ -109,7 +110,7 @@ public sealed class EventBuilder : IEventBuilder
             Context = StrictPrivacy.Allowed(context, _configuration.PrivacyAllowedFields),
             Tags = StrictPrivacy.Allowed(new Dictionary<string, object?>(), _configuration.PrivacyAllowedFields),
             SdkName = SdkName,
-            User = StrictPrivacy.User(user)
+            User = StrictPrivacy.User(user, _configuration.PrivacyUserKey)
         };
 
         evt = AttachSql(evt, exception);

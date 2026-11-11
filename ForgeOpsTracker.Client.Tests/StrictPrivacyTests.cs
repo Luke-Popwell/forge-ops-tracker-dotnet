@@ -31,6 +31,7 @@ public class StrictPrivacyTests
         ServerName = "web-1",
         StrictPrivacy = false,
         PrivacyAllowedFields = new HashSet<string>(),
+        PrivacyUserKey = null,
         CaptureSqlStatement = true,
         AppAssemblies = new HashSet<System.Reflection.Assembly> { typeof(StrictPrivacyTests).Assembly }
     };
@@ -110,6 +111,72 @@ public class StrictPrivacyTests
     }
 
     [Fact]
+    public void HashesEveryUserIdVectorExactlyAsTheServerDoes()
+    {
+        var vectors = Vectors("user_id").EnumerateArray().ToList();
+        Assert.NotEmpty(vectors);
+        foreach (var vector in vectors)
+        {
+            Assert.Equal(
+                vector.GetProperty("hashed").GetString(),
+                StrictPrivacy.HashedUserId(vector.GetProperty("id").GetString()!, vector.GetProperty("key").GetString()!));
+        }
+    }
+
+    [Fact]
+    public void HashesAnIntegerIdAsItsText()
+    {
+        var user = StrictPrivacy.User(new Dictionary<string, object?> { ["id"] = 42 }, "customer-secret");
+        Assert.Equal(new Dictionary<string, object?> { ["id"] = "h1:316d4a35bc95112698f59ef5aac5c29a" }, user);
+    }
+
+    [Fact]
+    public void ReadsTheUserKeyFromTheEnvironmentTreatingEmptyAsUnset()
+    {
+        Assert.Null(Configuration.ResolvePrivacyUserKey(_ => null));
+        Assert.Null(Configuration.ResolvePrivacyUserKey(name => name == "FORGE_OPS_PRIVACY_USER_KEY" ? "" : null));
+        Assert.Equal("customer-secret", Configuration.ResolvePrivacyUserKey(name => name == "FORGE_OPS_PRIVACY_USER_KEY" ? "customer-secret" : null));
+        Assert.Equal(Configuration.ResolvePrivacyUserKey(System.Environment.GetEnvironmentVariable), new Configuration().PrivacyUserKey);
+        var configuration = new Configuration { PrivacyUserKey = "explicit" };
+        Assert.Equal("explicit", configuration.PrivacyUserKey);
+        configuration.PrivacyUserKey = "";
+        Assert.Null(configuration.PrivacyUserKey);
+    }
+
+    [Fact]
+    public void AStrictEventWithAUserKeyCarriesOnlyTheHashedId()
+    {
+        var configuration = NewConfiguration();
+        configuration.StrictPrivacy = true;
+        configuration.PrivacyUserKey = "customer-secret";
+
+        var (evt, _) = Build(configuration);
+
+        Assert.Equal(new Dictionary<string, object?> { ["id"] = "h1:316d4a35bc95112698f59ef5aac5c29a" }, evt.User);
+        var json = JsonDocument.Parse(JsonSerializer.Serialize(evt)).RootElement;
+        Assert.Equal("h1:316d4a35bc95112698f59ef5aac5c29a", json.GetProperty("user").GetProperty("id").GetString());
+        Assert.DoesNotContain("jane", json.GetRawText());
+    }
+
+    [Fact]
+    public void AStrictEventWithoutAUserKeyCarriesNoUser()
+    {
+        var configuration = NewConfiguration();
+        configuration.StrictPrivacy = true;
+        Assert.Null(Build(configuration).Event.User);
+        configuration.PrivacyUserKey = "";
+        Assert.Null(Build(configuration).Event.User);
+
+        // A key with a blank id still sends no user.
+        configuration.PrivacyUserKey = "customer-secret";
+        var blank = new EventBuilder(configuration).Build(
+            new Exception("x"),
+            new Dictionary<string, object?>(),
+            new Dictionary<string, object?> { ["id"] = " ", ["email"] = "jane@example.com" });
+        Assert.Null(blank.User);
+    }
+
+    [Fact]
     public void IsOffByDefaultAndReadFromTheEnvironment()
     {
         Assert.Equal(Configuration.ResolveStrictPrivacy(System.Environment.GetEnvironmentVariable), new Configuration().StrictPrivacy);
@@ -145,7 +212,7 @@ public class StrictPrivacyTests
         Assert.Matches("^[0-9a-f]{32}$", evt.MessageFingerprint!);
         Assert.Equal(new Dictionary<string, object?> { ["error_code"] = "E42", ["retries"] = 3, ["flagged"] = true }, evt.Context);
         Assert.Null(evt.Tags);
-        Assert.Equal(new Dictionary<string, object?> { ["id"] = "42" }, evt.User);
+        Assert.Null(evt.User);
         Assert.Null(evt.Breadcrumbs);
         Assert.Null(evt.SqlStatement);
         Assert.Equal(0, reads);

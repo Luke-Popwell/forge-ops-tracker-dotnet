@@ -71,6 +71,18 @@ public static class StrictPrivacy
     }
 
     /// <summary>
+    /// The user id strict privacy sends: "h1:" and the first 32 lowercase hex characters of
+    /// HMAC-SHA256 of the id's UTF-8 text, keyed with the app's own secret
+    /// (<see cref="Configuration.PrivacyUserKey"/>), which ForgeOps never sees. The same id hashes
+    /// the same under one key, so affected customers can still be counted.
+    /// </summary>
+    public static string HashedUserId(string id, string key)
+    {
+        var digest = HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.UTF8.GetBytes(id));
+        return "h1:" + Convert.ToHexString(digest).ToLowerInvariant()[..FingerprintLength];
+    }
+
+    /// <summary>
     /// A path that can't name a person, with no query or fragment. A route template (any segment a
     /// parameter: ":id", "{id}", "&lt;int:id&gt;", "[slug]", "*path") is kept as it is. A raw path
     /// keeps only its first segment (":id" if it holds an ASCII digit or is longer than 40
@@ -130,13 +142,18 @@ public static class StrictPrivacy
         return kept.Count == 0 ? null : kept;
     }
 
-    /// <summary>The user's id only, as a string; null when there's no id.</summary>
-    internal static Dictionary<string, object?>? User(IDictionary<string, object?>? user)
+    /// <summary>
+    /// Only a keyed hash of the user's id (<see cref="HashedUserId"/>), and only when the app set a
+    /// user key; null when there's no key or no id. A raw id can be a record number that identifies
+    /// a person, and an unkeyed hash of a small number can be guessed back.
+    /// </summary>
+    internal static Dictionary<string, object?>? User(IDictionary<string, object?>? user, string? key)
     {
+        if (string.IsNullOrEmpty(key)) return null;
         if (user is null || !user.TryGetValue("id", out var raw)) return null;
 
         var id = raw is IFormattable formattable ? formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture) : raw?.ToString();
-        return string.IsNullOrWhiteSpace(id) ? null : new Dictionary<string, object?> { ["id"] = id };
+        return string.IsNullOrWhiteSpace(id) ? null : new Dictionary<string, object?> { ["id"] = HashedUserId(id, key) };
     }
 
     /// <summary>Span data keeps only the (already masked) db.statement and db.system.</summary>

@@ -82,8 +82,8 @@ public sealed class Configuration
     // events carry only structured facts (exception class, stack frames, release, environment,
     // where it happened), never free text. The message is replaced by message_fingerprint (see
     // StrictPrivacy.MessageFingerprint), breadcrumbs aren't recorded or sent, endpoint,
-    // sql_statement and source context aren't sent, the user is sent as its id only, and context
-    // and tags keep only the PrivacyAllowedFields with plain values. Spans keep only their method
+    // sql_statement and source context aren't sent, the user's id is sent only as a keyed hash
+    // (PrivacyUserKey), and context and tags keep only the PrivacyAllowedFields with plain values. Spans keep only their method
     // and host for outbound calls, and only db.statement and db.system as data. Off by default;
     // FORGE_OPS_STRICT_PRIVACY=true turns it on.
     public bool StrictPrivacy { get; set; } = ResolveStrictPrivacy(System.Environment.GetEnvironmentVariable);
@@ -92,6 +92,18 @@ public sealed class Configuration
     // name), when their value is a string, number or boolean. Empty by default;
     // FORGE_OPS_PRIVACY_ALLOWED_FIELDS=error_code,feature sets it from the environment.
     public ISet<string> PrivacyAllowedFields { get; set; } = ResolvePrivacyAllowedFields(System.Environment.GetEnvironmentVariable);
+
+    // Strict privacy sends the user's id only as a keyed hash (StrictPrivacy.HashedUserId) with this
+    // secret, which stays in your app; unset, no user is sent at all. Keep it the same across
+    // deploys and servers, or the same customer counts as two. FORGE_OPS_PRIVACY_USER_KEY sets it
+    // from the environment; an empty key counts as unset.
+    public string? PrivacyUserKey
+    {
+        get => _privacyUserKey;
+        set => _privacyUserKey = string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    private string? _privacyUserKey = ResolvePrivacyUserKey(System.Environment.GetEnvironmentVariable);
 
     public ILogger? Logger { get; set; }
 
@@ -311,6 +323,13 @@ public sealed class Configuration
     {
         var value = variable("FORGE_OPS_STRICT_PRIVACY")?.Trim();
         return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) || value == "1";
+    }
+
+    /// <summary>FORGE_OPS_PRIVACY_USER_KEY: the user id key, or null when unset or empty.</summary>
+    internal static string? ResolvePrivacyUserKey(Func<string, string?> variable)
+    {
+        var value = variable("FORGE_OPS_PRIVACY_USER_KEY");
+        return string.IsNullOrEmpty(value) ? null : value;
     }
 
     /// <summary>FORGE_OPS_PRIVACY_ALLOWED_FIELDS: comma separated, blanks around each name ignored.</summary>
